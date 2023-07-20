@@ -300,18 +300,18 @@
     ggtitle("Biological process")
   
   
-# fig5E
-
-  # tcga (list: tcga_tpm, tcga_pdata)
-  load(file.path("Data","tcga.rda"))
-  expr_tcga <- log2(tcga$tcga_tpm+1)
-  pheno_tcga <- tcga$tcga_pdata
-  pheno_tcga <- pheno[Cohort %like% "TCGA"][Specimen_Type == "BM"][!FAB_Detailed %in% c("M3","M6","M7")]
-  pheno_tcga <- pheno_tcga[Adult == TRUE][Status_at_sampling_Diagnosis_Relapse_post_allo_healthy_other == "Diagnosis"]
-  pheno_tcga[,Sample:=str_replace_all(Sample,"-",".")]
-  samples <- intersect(colnames(expr_tcga),pheno_tcga$Sample)
-  pheno_tcga <- pheno_tcga[Sample %in% samples]
-  expr_tcga <- expr_tcga[,pheno_tcga$Sample]
+# fig5E-G
+  
+  # lr genes
+  B_ligands <- c("ADAM15","ADAM17","ADAM28","APP",
+                 "CALM1","CALM1","CALM1","CALM2","CALM2","CALM3","CALM3",
+                 "CALR","FLT3LG","GNAI2","GNAI2",
+                 "LRPAP1","PSEN1","RGMB","TGFB1","TNFSF13","CD48")
+  AML_receptors <- c("ITGA9","NOTCH1","ITGA4","SLC45A3","KCNQ5","PTPRA","SELL",
+                     "KCNQ5","SELL","KCNQ5","SELL","SCARF1",
+                     "FLT3","F2R","IGF1R","SORL1","NOTCH1","BMPR2","ENG","TNFRSF1A","CD244")
+  lr_pairs <- data.table(B_ligands,AML_receptors)
+  
   
   # lsc17
   lsc17 <- c("DNMT3B","ZBTB46","NYNRIN","ARHGAP22","LAPTM4B","MMRN1","DPYSL3","KIAA0125","CDK6",
@@ -320,19 +320,79 @@
                   -0.0704,-0.0258,0.0271,-0.0226,0.0146,0.0465,0.0338,-0.0402,0.0501)
   names(lsc17_coef) <- lsc17
   
-  # aml receptor
-  AML_receptors <- c("ITGA9","NOTCH1","ITGA4","SLC45A3","KCNQ5","PTPRA","SELL","SCARF1",
-                     "FLT3","F2R","IGF1R","SORL1","BMPR2","ENG","TNFRSF1A","CD244")
+  
+  # TCGA
+  load(file.path("Data","tcga.rda"))
+  expr_tcga <- log2(tcga$tcga_tpm+1)
+  expr_tcga <- as.data.frame(t(scale(t(expr_tcga))))
+  pheno_tcga <- tcga$tcga_pdata
+  pheno_tcga[,Sample:=str_replace_all(Sample,"-",".")]
+  
+  LR_mean_sample <- c()
+  for(s in names(expr_tcga)){
+    LR_mean <- c()
+    for(lr in 1:nrow(lr_pairs)){
+      
+      lr_mean <-ifelse(lr_pairs[lr,B_ligands] %in% row.names(expr_tcga) & lr_pairs[lr,AML_receptors] %in% row.names(expr_tcga),
+                       mean(expr_tcga[lr_pairs[lr,B_ligands],s],expr_tcga[lr_pairs[lr,AML_receptors],s],na.rm=T),NA)
+      LR_mean <- c(LR_mean,lr_mean)
+    }
+    LR_mean_sample  <- c(LR_mean_sample,mean(LR_mean,na.rm=T))
+  }
   
   lsc_tcga <- apply(expr_tcga[intersect(row.names(expr_tcga),lsc17),],2,function(x) x %*% lsc17_coef[intersect(row.names(expr_tcga),lsc17)])
-  AML_receptors_tcga <- colMeans(expr_tcga[intersect(row.names(expr_tcga),AML_receptors),])
- 
+  
   signatures_tcga <- data.table(Sample=names(expr_tcga),
-                                LSC17=lsc_tcga,
-                                AML_receptors_mean=AML_receptors_tcga)
-  # 153 samples
+                                LR_mean=LR_mean_sample,
+                                LSC17=lsc_tcga)
+  signatures_tcga[,LR_mean:=scale(LR_mean)]
   pheno_tcga <- left_join(pheno_tcga,signatures_tcga)
   
-  corrLM(data=pheno_tcga,x_col="AML_receptors_mean",y_col="LSC17",x_lab="Expression of receptors in AML cells",title="TCGA cohort",
-         x_label=4.65,y_cor_label=0.52,y_formula_label=0.45)
+  # HR (+1SD) = 1.3 [1.081-1.563]     Cox P = 0.00535
+  # L: 57, M: 61, H: 55
+  summary(coxph(Surv(OS_days,OS) ~ LR_mean, data = pheno_tcga))
+  smoothCoxph(pheno_tcga$OS_days,pheno_tcga$OS,pheno_tcga$LR_mean,xlab="Expr. ligand-receptor (SD)")
+
   
+  pheno_tcga$Group <- "M"
+  pheno_tcga$Group[pheno_tcga$LR_mean > 0.5] <- "H"
+  pheno_tcga$Group[pheno_tcga$LR_mean <= -0.5] <- "L"
+  pheno_tcga$Group <- factor(pheno_tcga$Group,levels=c("L","M","H"))
+  fit=survfit(Surv(OS_days,OS) ~ Group, data = pheno_tcga)
+  p2 <- ggsurvplot(fit, data = pheno_tcga, risk.table = T, conf.int = F,pval=T,
+                   pval.size=2.5,size=0.3,censor.size = 3,
+                   surv.scale="percent", xscale=365,break.x.by=2*365,xlim=c(0,365*8),
+                   palette=c("#2ca02c","gray","#d62728"),legend=c(0.7,0.8),xlab="Survival Time (years)")
+  p2 <- p2$plot+
+    theme(title=element_text(size=9),
+          axis.title.y = element_text(size = 8),
+          axis.title.x = element_text(size = 8),
+          axis.text.x = element_text(size = 7),
+          axis.text.y = element_text(size = 7))
+  
+  # H vs L, p = 0.013
+  pheno_tcga2 <- pheno_tcga[pheno_tcga$Group != "M",]
+  surv_pvalue(surv_fit(Surv(OS_days,OS) ~ Group, data = pheno_tcga2))
+  
+  
+  p3 <- ggplot(pheno_tcga2,aes(x=Group,y=LSC17,fill=Group))+
+    geom_boxplot(color='gray40',outlier.shape=NA,size=0.1,width=0.6)+
+    geom_point(position = position_jitterdodge(),color='gray50',size=0.8,shape=21,stroke=0.2)+
+    stat_compare_means(comparisons = list(c("L","H")),method="wilcox.test",size=2.5)+
+    scale_fill_manual(values=c("#2ca02c","#d62728"))+
+    theme_classic() +
+    ylab("LSC17 Signature score")+
+    theme(legend.position="none",
+          axis.title.y = element_text(size = 8),
+          axis.title.x = element_blank(),
+          axis.text.x = element_text(size = 7),
+          axis.text.y = element_text(size = 8))
+  p2+p3+plot_layout(widths = c(1.5,1))
+  
+  
+  
+  
+  
+  
+  
+ 
