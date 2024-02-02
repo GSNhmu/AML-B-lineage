@@ -3,19 +3,6 @@
 
 
 # fig2A
-  cor.mat <- GetAssayData(object_b,slot = "data")
-  cor.mat <- as.matrix(cor.mat)
-  cor.mat <- groupMeans(cor.mat,groups = object_b$sample)
-  M <-  cor(cor.mat)
-  anno_col <- unique(data.frame(object_b$sample,object_b$Cytogenetics,object_b$sample_type))
-  row.names(anno_col) <- anno_col$object_b.sample
-  anno_col$object_b.sample <- NULL
-  names(anno_col) <- c("Cytogenetics","Sample")
-  pheatmap(M,clustering_method = "ward.D2",annotation_col=anno_col,treeheight_col = 25,border_color="gray80",
-           angle_col="90",fontsize_col=7,annotation_colors=list(Cytogenetics=Cytogenetics.colors,Sample=sample_type.colors))
-
-
-# fig2B
   DimPlot(object_b,group.by="celltype",cols=celltype.colors)
   
   p1 <- DimPlot(object_b,cells.highlight = list(IGHM=WhichCells(object_b,expression  = c_call == "IGHM")),
@@ -41,7 +28,7 @@
   p1+p2+p3+p4+plot_layout(nrow=1,guides="collect")
     
   
-# fig2C
+# fig2B
   B_markers <- list(
     `B cell`=c("CD79A","CD79B","MS4A1","CD19","CD37"),
     Plasma=c("JCHAIN","MZB1","SDC1"),
@@ -71,13 +58,13 @@
     guides(size=guide_legend(order=3))
 
 
-# fig2D
+# fig2C
   DimPlot(object_b,label =F,group.by = "MF_group",cols=MF_group.colors,pt.size=0.05,na.value="gray90")+
     labs(col="SHM")+ggtitle("")+NoAxes()
   phenoPropotion_flip(data=object_b@meta.data,x_name="celltype_2",y_name="MF_group",cols=MF_group.colors,legend_name="SHM")
 
 
-# fig2E
+# fig2D
   gdat <- Embeddings(object_b,reduction = 'umap');
   gdat <- as.data.frame(gdat);
   gdat$timepoint <- object_b$sample_type
@@ -89,7 +76,7 @@
     facet_wrap(~timepoint,ncol = 1)+NoAxes()
   
 
-# fig2F
+# fig2E
   miloplot_b <-subset(object_b,sample_type != "RelRef")
   b_milo <- Milo(as.SingleCellExperiment(miloplot_b))
   b_milo <- buildGraph(b_milo, k = 30, d = 30)
@@ -135,12 +122,25 @@
     coord_flip()
   
   
-# fig2G
+# fig2F
   phenoPropotion(data=object_b@meta.data,x_name="sample_type",y_name="celltype",cols=celltype.colors,legend_name="cellType")
 
   
   
-# figS2A
+# fig2A
+  cor.mat <- GetAssayData(object_b,slot = "data")
+  cor.mat <- as.matrix(cor.mat)
+  cor.mat <- groupMeans(cor.mat,groups = object_b$sample)
+  M <-  cor(cor.mat)
+  anno_col <- unique(data.frame(object_b$sample,object_b$Cytogenetics,object_b$sample_type))
+  row.names(anno_col) <- anno_col$object_b.sample
+  anno_col$object_b.sample <- NULL
+  names(anno_col) <- c("Cytogenetics","Sample")
+  pheatmap(M,clustering_method = "ward.D2",annotation_col=anno_col,treeheight_col = 25,border_color="gray80",
+           angle_col="90",fontsize_col=7,annotation_colors=list(Cytogenetics=Cytogenetics.colors,Sample=sample_type.colors))
+  
+  
+# figS2B
   featureplot <- function(gene){
     colour_bk <- c("#f0f0f0",#colorRampPalette(c("#006837","#d9ef8b"))(5),
                    colorRampPalette(c("#d9ef8b","#fee08b"))(5),
@@ -161,7 +161,7 @@
   featureplot("CD24")
   
   
-# figS2B
+# figS2C
   vlnplot_gene <- function(gene){
     VlnPlot(object_b,features=c(gene),group.by="celltype",
             cols=celltype.colors,pt.siz=0)+xlab("")+
@@ -179,11 +179,11 @@
   vlnplot_gene("ITGAX")
   
 
-# figS2C
+# figS2D
   phenoPropotion_flip(data=object_b@meta.data,x_name="celltype",y_name="c_call",
                       cols=c_call.colors,legend_name="Isotype")
   
-# figS2D
+# figS2E
   sample_order <- c(paste0("N",1:6),paste0("PT",9:32),sort(str_extract(unique(object_b$sample),pattern="^PT[1-8][A|B|C]")))
   cols_tmp <- ColAssign(sample_order)
   cols_tmp[names(cols_tmp) %in% c("PT7A","PT7B","PT7C")] <- "gray25"  # 改一下颜色！！！！！
