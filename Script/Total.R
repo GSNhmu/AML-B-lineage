@@ -153,7 +153,9 @@
   object_b <- RunUMAP(object_b,reduction = "harmony",dims=1:30,min.dist=0.5,seed.use=1)
   
   # To maintain consistency with the UMAP plot in the article, it is recommended to replace the UMAP embedding.
-  object_b@reductions$umap@cell.embeddings <- as.matrix(object_b_metadata[,c("UMAP_1","UMAP_2")])
+  umap_embeddings <- as.matrix(object_b_metadata[,c("UMAP_1","UMAP_2")])
+  colnames(umap_embeddings) <- c("umap_1","umap_2")
+  object_b@reductions$umap@cell.embeddings <- umap_embeddings
   
   
   
